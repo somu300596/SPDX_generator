@@ -4,7 +4,7 @@ usage="$(basename "$0") [-i] [-c] [-j]
 
 where:
     -i  input path of manifest file. It is the file generated from qscan tool
-    -c  output path where the manifest file is converted to JSON format
+    -c  output path where the manifest file is converted to CSV format
     -j  output path of the resulting SPDX file"
 
 while getopts ":i:c:j:" opt; do
