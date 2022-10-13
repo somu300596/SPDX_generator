@@ -3,6 +3,7 @@ import csv
 import json
 import argparse
 import requests
+import datetime
 from bs4 import BeautifulSoup
 
 parser = argparse.ArgumentParser(description='Convert csv to json file')
@@ -30,7 +31,10 @@ def csv_to_json(csvFilePath, jsonFilePath):
 
 def spdx_format_json(jsonFilePath, spdx_json_file):
 
-	op_data = []
+	spdx_dict= {}
+	package_data = []
+	file_data = []
+	package_name_list = []
 
 	with open(jsonFilePath, 'r') as f:
 
@@ -39,26 +43,81 @@ def spdx_format_json(jsonFilePath, spdx_json_file):
 
 			if row['ARCHITECTURE'] != "":
 
-				copyrightText_list=[]
+				# It is a package
+
+				print("Extracting details for the package : ",row['NAME'])
+				copyrightText_list=""
 				URL=row['OSS_LINK']
 				page = requests.get(f'{URL}')
 				soup = BeautifulSoup(page.content, "lxml")
 				for i in soup.get_text().split('\n'):
 					if i.startswith("Copyright"):
-						copyrightText_list.append(i)
+						copyrightText_list += i + " "
+				if row['OSS'] == "None" or row['OSS'] == "" :
+					row['OSS'] = "NOASSERTION"
+				else:
+					licenseInfoFromFiles = row['OSS'].replace(',','","')
 
-				op_data.append({"packageFileName": row['BASENAME'],
-				"attributionTexts": [row['OSS']],
-				"checksums": [{"algorithm": "SHA512", "checksumValue": row['DIGESTSHA512']}],
-				"copyrightText":copyrightText_list,
-				"downloadLocation":row['PACKAGE'],
-				"supplier":row['PRODUCT'],
-				"versioninfo":row['PACKAGEINVERSION']})
+				if row['BASENAME'] not in package_name_list:
+
+					package_data.append({"SPDXID": "SPDXRef-" + row['BASENAME'],
+					"name": row['BASENAME'],
+					"licenseInfoFromFiles": [licenseInfoFromFiles],
+					"licenseConcluded": row['OSS'].replace(", ", " AND "),
+					"licenseDeclared": row['OSS'].replace(", ", " AND "),
+					"checksums": [{"algorithm": "SHA512", "checksumValue": row['DIGESTSHA512HEX']}],
+					"packageVerificationCode": {
+						"packageVerificationCodeExcludedFiles" : [],
+						"packageVerificationCodeValue" : ""
+					},
+					"copyrightText":copyrightText_list,
+					"downloadLocation":row['PACKAGE'],
+					"supplier":"Organization: " + row['PRODUCT'],
+					"versionInfo":row['PACKAGEINVERSION'],
+					"hasFiles": []})
+
+					package_name_list.append(row['BASENAME'])
+
+			else:
+
+				# It is a file
+
+				print("Extracting details for the file : ",row['NAME'])
+
+				file_data.append({"SPDXID": "SPDXRef-" + row['BASENAME'],
+				"fileName": row['NAME'],
+				"checksums": [{"algorithm": "SHA512", "checksumValue": row['DIGESTSHA512HEX']}],
+				"licenseConcluded": "NOASSERTION",
+				"licenseInfoFromFiles": [""],
+				"copyrightText":""
+				})
+
+	# Adding some static information
+	spdx_dict['SPDXID'] = "SPDXRef-DOCUMENT"
+	spdx_dict['spdxVersion'] = "SPDX-2.2"
+	spdx_dict['dataLicense'] = "CC0-1.0"
+
+	# Name of the SPDX file
+	spdx_dict['name'] = "SPDX-QNX-target"
+
+	# Document URI
+	spdx_dict['documentNamespace'] = " "
+	spdx_dict['documentDescribes'] = "SPDXRef-" + package_name_list[0],
+
+	# Time when it is created
+	spdx_dict['creationInfo'] = {
+		"creators": ["Organization: ESMP"],
+		"created": datetime.datetime.utcnow().isoformat() + "Z"
+	}
+
+	spdx_dict['packages'] = package_data
+	spdx_dict['files'] = file_data
+
 
 	#convert python jsonArray to JSON String and write to file
 	with open(spdx_json_file, 'w', encoding='utf-8') as jsonf:
-		jsonString = json.dumps(op_data, indent=4)
-		jsonf.write(jsonString)
+		jsonString = json.dumps(spdx_dict, indent=4)
+		jsonf.write(jsonString.replace('\\",\\" ','","'))
 
 
 # Gather arguments

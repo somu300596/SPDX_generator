@@ -19,8 +19,12 @@ while getopts ":i:c:j:" opt; do
 done
 
 # First find the location of qnxsoftwarecentre_clt script
-
 qsc_clt_list=$(find ~ -name qnxsoftwarecenter_clt)
+if [ -z "$qsc_clt_list" ]
+then
+    echo "Please Install QNX SOftware centre :( "
+fi
+
 # Grab the first found location of qnxsoftwarecenter CLI
 qsc_clt=$(echo ${qsc_clt_list} | awk '{print $1}')
 
